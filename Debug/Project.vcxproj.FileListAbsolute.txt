@@ -4,3 +4,5 @@ C:\CS271\Project3\Debug\Project.exe
 C:\CS271\Project3\Debug\Project.pdb
 C:\CS271\Project6\Debug\Project.exe
 C:\CS271\Project6\Debug\Project.pdb
+C:\CS271\Assembly-Final-Project\Debug\Project.exe
+C:\CS271\Assembly-Final-Project\Debug\Project.pdb
