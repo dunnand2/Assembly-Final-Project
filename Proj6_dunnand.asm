@@ -31,9 +31,12 @@ ENDM
 						BYTE	"Each number needs to be small enough to fit inside a 32 bit register.", 13, 10
 						BYTE	"After you have finished inputting the raw numbers I will display", 13, 10
 						BYTE	"a list of the integers, their sum, and their average value.", 13, 10, 0
+	error_1				BYTE	"ERROR: You did not enter a signed number or your number was too big.", 13, 10
+						BYTE	"Please try again: ", 0
 	outro_1				BYTE	"Thanks for playing!", 0
 	prompt_1			BYTE	"Please enter an signed number: ", 0
 	userString			BYTE	33 DUP(0) 
+	validChar			BYTE	?
 	userArray			SDWORD	10 DUP(?)
 
 
@@ -46,6 +49,8 @@ main PROC
 	PUSH OFFSET intro_2
 	CALL introduction
 
+	PUSH OFFSET validChar
+	PUSH OFFSET error_1
 	PUSH OFFSET prompt_1
 	PUSH OFFSET userString
 	PUSH SIZEOF userString
@@ -110,8 +115,7 @@ introduction ENDP
 
 ReadVal PROC
 	; build stack frame
-	PUSH EBP
-	MOV EBP, ESP
+	LOCAL validChar:BYTE
 	PUSH EDX
 	PUSH ECX
 	PUSH EBX
@@ -120,16 +124,25 @@ ReadVal PROC
 	mGetString [EBP + 20], [EBP + 16], [EBP + 12]
 	
 	MOV EBX, [EBP + 8]		; Array location
+	PUSH [EBP - 4]
 	PUSH EAX				; Number of Bytes read
 	PUSH EBX				
 	PUSH EDX				; This is the current string OFFSET
 	CALL convertString
 
+	MOV EAX, [EBP - 4]
+	CMP EAX, 0
+	JG _errorNewNumber
+	JMP _noError
 
+_errorNewNumber:
+	MOV EDX, [EBP + 24]
+	CALL WriteString
+
+_noError:
 	POP EBX
 	POP ECX
 	POP EDX
-	POP EBP
 	RET 16
 ReadVal ENDP
 
@@ -148,17 +161,21 @@ ReadVal ENDP
 ; ---------------------------------------------------------------------------------
 convertString PROC
 	LOCAL numInt:SDWORD
+	
 	PUSH EAX
 	PUSH EBX
 	PUSH ECX
+	PUSH EDX
 	PUSH EDI
 	PUSH ESI
 
-	MOV numInt, 0
+	XOR EAX, EAX
+	MOV numInt, EAX
 	MOV EDI, [EBP + 12]
 	MOV ESI, [EBP + 8]
-	MOV ECX, [EBP + 16]
-
+	MOV ECX, [EBP + 16]			; length of string
+	MOV EDX, [EBP + 20]			; LOCAL validChar 
+	MOV [EDX], EAX
 	
 _stringLoop:
 	LODSB
@@ -181,17 +198,23 @@ _stringLoop:
 _storeString:
 	MOV [EDI], EAX
 	CALL WriteInt
-	JMP _doneConverting
+	JMP _valid
 
 _invalid:
+	MOV EAX, 1
+	MOV [EDX], EAX
+
+_valid:
+	XOR EAX, EAX
 
 _doneConverting:
 	POP ESI
 	POP EDI
+	POP EDX
 	POP ECX
 	POP EBX
 	POP EAX
-	RET 12
+	RET 16
 convertString ENDP
 
 ; ---------------------------------------------------------------------------------

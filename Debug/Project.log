@@ -1,2 +1,3 @@
 ﻿  Assembling Proj6_dunnand.asm...
+Proj6_dunnand.asm(145): warning A6004: procedure argument or local not referenced : validChar
   Project.vcxproj -> C:\CS271\Assembly-Final-Project\Debug\Project.exe
