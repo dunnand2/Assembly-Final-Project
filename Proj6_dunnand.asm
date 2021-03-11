@@ -36,7 +36,7 @@ ENDM
 	outro_1				BYTE	"Thanks for playing!", 0
 	prompt_1			BYTE	"Please enter an signed number: ", 0
 	userString			BYTE	33 DUP(0) 
-	validChar			BYTE	?
+	validChar			DWORD	?
 	userArray			SDWORD	10 DUP(?)
 
 
@@ -115,7 +115,8 @@ introduction ENDP
 
 ReadVal PROC
 	; build stack frame
-	LOCAL validChar:BYTE
+	PUSH EBP
+	MOV EBP, ESP
 	PUSH EDX
 	PUSH ECX
 	PUSH EBX
@@ -124,13 +125,14 @@ ReadVal PROC
 	mGetString [EBP + 20], [EBP + 16], [EBP + 12]
 	
 	MOV EBX, [EBP + 8]		; Array location
-	PUSH [EBP - 4]
+	PUSH [EBP + 28]
 	PUSH EAX				; Number of Bytes read
 	PUSH EBX				
 	PUSH EDX				; This is the current string OFFSET
 	CALL convertString
 
-	MOV EAX, [EBP - 4]
+	MOV EDX, [EBP + 28]
+	MOV EAX, [EDX]
 	CMP EAX, 0
 	JG _errorNewNumber
 	JMP _noError
@@ -143,7 +145,8 @@ _noError:
 	POP EBX
 	POP ECX
 	POP EDX
-	RET 16
+	POP EBP
+	RET 24
 ReadVal ENDP
 
 ; ---------------------------------------------------------------------------------
@@ -161,7 +164,6 @@ ReadVal ENDP
 ; ---------------------------------------------------------------------------------
 convertString PROC
 	LOCAL numInt:SDWORD
-	
 	PUSH EAX
 	PUSH EBX
 	PUSH ECX
@@ -174,7 +176,7 @@ convertString PROC
 	MOV EDI, [EBP + 12]
 	MOV ESI, [EBP + 8]
 	MOV ECX, [EBP + 16]			; length of string
-	MOV EDX, [EBP + 20]			; LOCAL validChar 
+	MOV EDX, [EBP + 20]
 	MOV [EDX], EAX
 	
 _stringLoop:
@@ -203,9 +205,11 @@ _storeString:
 _invalid:
 	MOV EAX, 1
 	MOV [EDX], EAX
+	JMP _doneConverting
 
 _valid:
 	XOR EAX, EAX
+	MOV [EBP + 20], EAX
 
 _doneConverting:
 	POP ESI
