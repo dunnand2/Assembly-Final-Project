@@ -1,10 +1,10 @@
-TITLE Project 6     (Proj5_dunnand.asm)
+TITLE Project 6     (Proj6_dunnand.asm)
 
 ; Author: Andrew Dunn
 ; Last Modified: 2/28/2021
 ; OSU email address: dunnand@oregonstate.edu
 ; Course number/section:   CS271 Section 400
-; Project Number: 6                Due Date: 2/28/2021
+; Project Number: 6                Due Date: 3/14/2021
 ; Description: This program generates a random array of 200 integers between 10 and 29.
 ; It then sorts the array and prints the sorted values. It calculates the median value and prints it
 ; It then counts the total of each number within the sorted array and creates a new array with the
@@ -13,16 +13,20 @@ TITLE Project 6     (Proj5_dunnand.asm)
 
 INCLUDE Irvine32.inc
 
-mGetString MACRO prompt, outputLocation, outputLocationSize
-	MOV EDX, prompt
-	CALL WriteString
-
+mGetString MACRO outputLocation, outputLocationSize
+	; get user input and allowable input size
 	MOV EDX, outputLocation
 	MOV ECX, outputLocationSize
 	CALL ReadString
 ENDM
 
+mDisplayString MACRO inputLocation
+	; Display input string
+	MOV EDX, inputLocation
+	CALL WriteString
+ENDM
 
+ARRAYSIZE = 10
 
 .data
 	intro_1				BYTE	"PROGRAMMING ASSIGNMENT 6: Designing low-level I/O procedures", 13, 10 
@@ -38,6 +42,7 @@ ENDM
 	userString			BYTE	33 DUP(0) 
 	validChar			DWORD	?
 	userArray			SDWORD	10 DUP(?)
+	tempHeader			BYTE	"REMOVE ME: ", 13, 10, 0
 
 
 ; (insert variable definitions here)
@@ -56,6 +61,11 @@ main PROC
 	PUSH SIZEOF userString
 	PUSH OFFSET userArray
 	CALL ReadVal
+
+	PUSH OFFSET tempHeader
+	PUSH ARRAYSIZE
+	PUSH OFFSET userArray
+	CALL displayList
 
 	; Goodbye
 	PUSH OFFSET outro_1
@@ -121,27 +131,42 @@ ReadVal PROC
 	PUSH ECX
 	PUSH EBX
 
-	; put address of first element of random array into ESI and start counter
-	mGetString [EBP + 20], [EBP + 16], [EBP + 12]
+	; Set loop counter (EBX because macro uses ECX.)
+	MOV EBX, 10
+	MOV EDI, [EBP + 8]
+
+	;prompt user for input
+_promptUserNumber:
+	mDisplayString [EBP + 20]
+
+	; Call getString Macro
+_getString:
+	mGetString [EBP + 16], [EBP + 12]
+	; Postconditions: number of bytes read in EAX. Entered string in EDX
 	
-	MOV EBX, [EBP + 8]		; Array location
-	PUSH [EBP + 28]
+	PUSH [EBP + 28]			; validChar offset
 	PUSH EAX				; Number of Bytes read
-	PUSH EBX				
+	PUSH EDI				; userArray offset
 	PUSH EDX				; This is the current string OFFSET
 	CALL convertString
 
-	MOV EDX, [EBP + 28]
+	; Compare validChar to 0, continue with loop if valid, alert user if invalid number
+	MOV EDX, [EBP + 28]		
 	MOV EAX, [EDX]
 	CMP EAX, 0
-	JG _errorNewNumber
+	JG _errorInvalidNumber
 	JMP _noError
 
-_errorNewNumber:
-	MOV EDX, [EBP + 24]
-	CALL WriteString
+_errorInvalidNumber:
+	mDisplayString [EBP + 24]
+	JMP _getString
 
 _noError:
+	ADD EDI, 4
+	DEC	EBX
+	CMP EBX, 0
+	JNE _promptUserNumber
+
 	POP EBX
 	POP ECX
 	POP EDX
@@ -164,6 +189,7 @@ ReadVal ENDP
 ; ---------------------------------------------------------------------------------
 convertString PROC
 	LOCAL numInt:SDWORD
+	LOCAL negVal:DWORD
 	PUSH EAX
 	PUSH EBX
 	PUSH ECX
@@ -171,16 +197,50 @@ convertString PROC
 	PUSH EDI
 	PUSH ESI
 
+	; Assign values from the stack 
 	XOR EAX, EAX
 	MOV numInt, EAX
-	MOV EDI, [EBP + 12]
-	MOV ESI, [EBP + 8]
+	MOV negVal, EAX
+	MOV EDI, [EBP + 12]			; userArray to store numeric values
+	MOV ESI, [EBP + 8]			; user entered string
 	MOV ECX, [EBP + 16]			; length of string
-	MOV EDX, [EBP + 20]
-	MOV [EDX], EAX
+	MOV EDX, [EBP + 20]			; validChar offset used to validate string
+	MOV [EDX], EAX				; initialize validChar to 0 (valid status)
 	
+	; Load first value
+	LODSB
+
+	; Check if value is + sign, else continue to loop 
+	CMP AL, 43
+	JE _positiveSign
+
+	; Check if value is - sign, else continue to loop 
+	CMP AL, 45
+	JE _negativeSign
+	JMP _checkString
+
+_positiveSign:
+	; Invalidate if plus sign only string value entered
+	DEC ECX
+	CMP ECX, 0
+	JE _invalid
+	JMP _stringLoop
+
+_negativeSign:
+	; Invalidate if minus sign only string value entered
+	DEC ECX
+	CMP ECX, 0
+	JE _invalid
+
+	; Set negVal to 1 (indicates a negative value)
+	MOV EAX, 1
+	MOV negVal, EAX
+	JMP _stringLoop
+
 _stringLoop:
 	LODSB
+
+_checkString:
 	CMP AL, 48
 	JL _invalid
 	CMP AL, 57
@@ -198,11 +258,19 @@ _stringLoop:
 	JMP _stringLoop
 
 _storeString:
+	; Check if negVal was set to 1 (indicates a - sign was entered at start of string)
+	MOV EBX, negVal
+	CMP EBX, 1
+	JNE _positive
+	NEG EAX			; set value negative if negVal 1
+
+	; Store numeric value in user Array
+_positive:
 	MOV [EDI], EAX
-	CALL WriteInt
 	JMP _valid
 
 _invalid:
+	; If invalid update validChar to 1 (invalid status)
 	MOV EAX, 1
 	MOV [EDX], EAX
 	JMP _doneConverting
@@ -222,56 +290,94 @@ _doneConverting:
 convertString ENDP
 
 ; ---------------------------------------------------------------------------------
-;  Name: sortList
+;  Name: displayList
 ;	
-;  Sorts the array passed to the procedure
+;  Displays the random array
 ;
-;  Receives: randomArray, ARRAYSIZE
+;  Receives: unsortedHeader, randomArray, ARRAYSIZE
 ;
-;  Preconditions:  randomArray must be DWORD array
+;  Preconditions:  randomArray must be a DWORD array
 ;
-;  Postconditions:  EAX changed, EDX changed 
+;  Postconditions: EAX, EBX changed
 ;
 ;  Returns: randomArray
 ; ---------------------------------------------------------------------------------
-sortList PROC
+displayList PROC
 	; save stack frame
 	PUSH EBP
 	MOV EBP, ESP
 	PUSH ECX
-	PUSH EDI
+	PUSH ESI
+	PUSH EDX
 
-	; Assign counter (Array size) and array address
-	MOV ECX, [EBP + 12]
-	MOV EDI, [EBP + 8]
-	SUB ECX, 1
 
-_outerLoop:
-	PUSH ECX	; Loop Counter
-	PUSH EDI
-	_innerLoop:
-		; Compare values at adjacent indices, swap if first index is greater than second
-		MOV EAX, [EDI]
-		MOV EDX, [EDI + 4]
-		CMP EAX, EDX
-		JG _swap
-		JMP _loop
-		
-	_swap:
-		CALL exchangeElements
+	MOV ECX, [EBP + 12]		; ArraySize
+	MOV ESI, [EBP + 8]		; Array OFFSET
+	MOV EDX, [EBP + 16]		; Header
+	MOV EBX, 20
 
-	_loop:
-		ADD EDI, 4
-		LOOP _innerLoop
-	POP EDI
-	POP ECX
-	LOOP _outerLoop
+	CALL WriteString 
 
-	POP EDI
+_printLoop:
+	; check if new line
+	MOV EAX, [EBP + 12]			; Move ARRAYSIZE into EAX
+	SUB EAX, ECX				; Subtract counter from ARRAYSIZE for total printed
+	XOR EDX, EDX
+	DIV EBX						; Divide by 20
+	CMP EDX, 0					; Print new line if divisible by 20
+	JNE _printCurrValue
+	Call Crlf
+
+_printCurrValue:
+	; Read value current value into EAX and print
+	MOV EAX, [ESI]
+	CALL WriteInt
+	MOV AL, ' '
+	CALL WriteChar
+	ADD ESI, 4
+	LOOP _printLoop
+
+	; reset stack frame
+	Call Crlf
+	Call Crlf
+	POP EDX
+	POP ESI
 	POP ECX
 	POP EBP
 	RET 8
-sortList ENDP
+displayList ENDP
+
+; ---------------------------------------------------------------------------------
+;  Name: WriteVal
+;	
+;  Sorts the array passed to the procedure
+;
+;  Receives: SDWORD input
+;
+;  Preconditions:  
+;
+;  Postconditions:   
+;
+;  Returns: displays SDWORD value to output
+; ---------------------------------------------------------------------------------
+WriteVal PROC
+	LOCAL stringOutput:BYTE 
+
+	MOV EAX, [EBP + 8] ; Numeric SDWORD
+	XOR EDX, EDX
+	MOV EDI, [EBP - 4]
+
+_intToStringLoop:
+	CLD
+	DIV 10
+	CMP EDX, 0 
+	JE 
+	MOV AL, DL
+	STOSB
+	JMP intToStringLoop 
+
+	RET 4
+WriteVal ENDP
 
 ; ---------------------------------------------------------------------------------
 ;  Name: exchangeElements
