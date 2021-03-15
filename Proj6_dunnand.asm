@@ -44,6 +44,8 @@ ARRAYSIZE = 10
 	userString			BYTE	7 DUP(0) 
 	validChar			DWORD	?
 	userArray			SDWORD	10 DUP(?)
+	sum					SDWORD	?
+	average				SDWORD	?
 
 
 ; (insert variable definitions here)
@@ -55,6 +57,8 @@ main PROC
 	PUSH OFFSET intro_2
 	CALL introduction
 
+	PUSH OFFSET average
+	PUSH OFFSET sum
 	PUSH ARRAYSIZE
 	PUSH OFFSET validChar
 	PUSH OFFSET error_1
@@ -69,14 +73,13 @@ main PROC
 	;PUSH OFFSET userArray
 	;CALL displayList
 
+	PUSH sum
+	PUSH average
 	PUSH OFFSET string_separator
 	PUSH OFFSET prompt_2
 	PUSH ARRAYSIZE
 	PUSH OFFSET userArray
 	CALL writeAllValues
-
-	;PUSH OFFSET userArray
-	;CALL WriteVal
 
 	; Goodbye
 	PUSH OFFSET outro_1
@@ -140,7 +143,8 @@ getAllValues PROC
 	PUSH ECX
 
 	MOV EDI, [EBP + 8]			; userArray Offset
-	MOV ECX, [EBP + 32]			; ArraySize
+	MOV ECX, [EBP + 32]			; ArraySize5
+	MOV EBX, [EBP + 36]			; sum offset
 
 _getNumberLoop:
 	PUSH [EBP + 28]				; Push validChar 
@@ -151,14 +155,24 @@ _getNumberLoop:
 	PUSH EDI					; Push userArray Offset
 	CALL ReadVal
 
+	ADD EAX, [EDI]
+
 	ADD EDI, 4
 	LOOP _getNumberLoop
 	
+	MOV [EBX], EAX
+	MOV EBX, [EBP + 40]			; average offset
+
+	XOR EDX, EDX
+	DIV ECX
+	MOV [EBX], EAX
+
+
 	; return procedure
 	POP ECX
 	POP EDI
 	POP EBP
-	RET 28
+	RET 36
 getAllValues ENDP
 
 ; ---------------------------------------------------------------------------------
@@ -183,6 +197,7 @@ ReadVal PROC
 	PUSH EDX
 	PUSH ECX
 	PUSH EBX
+	PUSH EAX
 
 	MOV EDI, [EBP + 8]
 	MOV EBX, [EBP + 28]		; validChar OFFSET 
@@ -216,6 +231,7 @@ _errorInvalidNumber:
 	JMP _getString
 
 _noError:
+	POP EAX
 	POP EBX
 	POP ECX
 	POP EDX
@@ -382,6 +398,11 @@ _writeArrayValues:
 	JMP _writeArrayValues
 
 _finishWritingValues:
+	PUSH [EBP + 24]
+	Call WriteVal
+	Call Crlf
+	PUSH [EBP + 28]
+	Call WriteVal
 
 	; reset stack frame
 	Call Crlf
@@ -392,7 +413,7 @@ _finishWritingValues:
 	POP ESI
 	POP ECX
 	POP EBP
-	RET 16
+	RET 24
 writeAllValues ENDP
 
 ; ---------------------------------------------------------------------------------
