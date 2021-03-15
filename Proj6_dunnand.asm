@@ -1,14 +1,14 @@
 TITLE Project 6     (Proj6_dunnand.asm)
 
 ; Author: Andrew Dunn
-; Last Modified: 2/28/2021
+; Last Modified: 3/15/2021
 ; OSU email address: dunnand@oregonstate.edu
 ; Course number/section:   CS271 Section 400
-; Project Number: 6                Due Date: 3/14/2021
-; Description: This program generates a random array of 200 integers between 10 and 29.
-; It then sorts the array and prints the sorted values. It calculates the median value and prints it
-; It then counts the total of each number within the sorted array and creates a new array with the
-; counts of each number between 10 and 29.
+; Project Number: 6                Due Date: 3/16/2021 (two grace days)
+; Description: This program prompts the user for 10 integers (positive or negative). 
+; It reads those numbers as strings and converts them to integers using string primitive instructions.
+; It then calculates the sum and average of those integers. Finally, the program converts those integers
+; back to strings using string primitives (including sum and average), and displays the values as strings.
 
 
 INCLUDE Irvine32.inc
@@ -40,8 +40,10 @@ ARRAYSIZE = 10
 	outro_1				BYTE	"Thanks for playing!", 0
 	prompt_1			BYTE	"Please enter an signed number: ", 0
 	prompt_2			BYTE	"You entered the following numbers:", 13, 10, 0
+	sum_prompt			BYTE	"The sum of these numbers is: ", 0
+	average_prompt		BYTE	"The rounded average is: ", 0
 	string_separator	BYTE	", ", 0
-	userString			BYTE	7 DUP(0) 
+	userString			BYTE	20 DUP(0) 
 	validChar			DWORD	?
 	userArray			SDWORD	10 DUP(?)
 	sum					SDWORD	?
@@ -57,6 +59,7 @@ main PROC
 	PUSH OFFSET intro_2
 	CALL introduction
 
+	; Receive all values, while calculating sum and average
 	PUSH OFFSET average
 	PUSH OFFSET sum
 	PUSH ARRAYSIZE
@@ -68,11 +71,9 @@ main PROC
 	PUSH OFFSET userArray
 	CALL getAllValues
 
-	;PUSH OFFSET prompt_2
-	;PUSH ARRAYSIZE
-	;PUSH OFFSET userArray
-	;CALL displayList
-
+	; Write all values in the userArray, as well as sum and average of array values
+	PUSH OFFSET sum_prompt 
+	PUSH OFFSET average_prompt
 	PUSH sum
 	PUSH average
 	PUSH OFFSET string_separator
@@ -98,7 +99,7 @@ main ENDP
 ;
 ;  Preconditions:  None
 ;
-;  Postconditions: Displays introductory messages, intro_2 OFFSET in EDX
+;  Postconditions: Displays introductory messages
 ;
 ;  Returns: None
 ; ---------------------------------------------------------------------------------
@@ -106,6 +107,7 @@ introduction PROC
 	; save stack frame
 	PUSH EBP
 	MOV EBP, ESP
+	PUSH EDX
 
 	; print intro_1
 	MOV EDX, [EBP+12]
@@ -118,6 +120,7 @@ introduction PROC
 	CALL Crlf
 	
 	; return procedure
+	POP EDX
 	POP EBP
 	RET 8
 introduction ENDP
@@ -125,15 +128,17 @@ introduction ENDP
 ; ---------------------------------------------------------------------------------
 ;  Name: getAllValues
 ;	
-;  Gets 10 values from user
+;  Description: Loops through 10 times calling ReadVal. ReadVal converts from string input to integers 
+;				and stores in userArray. Calculates sum and average of converted integers. 
 ;
-;  Receives: 
+;  Receives:	average OFFSET, sum OFFSET, ARRAYSIZE, validChar OFFSET, SIZEOF userString 
+;				error_1 OFFSET, prompt_1 OFFSET, userString OFFSET, userArray OFFSET
 ;
 ;  Preconditions:  None
 ;
-;  Postconditions: Displays introductory messages, intro_2 OFFSET in EDX
+;  Postconditions: None
 ;
-;  Returns: None
+;  Returns: 10 integers are stored in userArray. Average and sum are updated
 ; ---------------------------------------------------------------------------------
 getAllValues PROC
 	; save stack frame
@@ -141,11 +146,17 @@ getAllValues PROC
 	MOV EBP, ESP
 	PUSH EDI
 	PUSH ECX
+	PUSH EAX
+	PUSH EBX
+	PUSH EDX
 
+	; initialize values
 	MOV EDI, [EBP + 8]			; userArray Offset
-	MOV ECX, [EBP + 32]			; ArraySize5
+	MOV ECX, [EBP + 32]			; ArraySize
 	MOV EBX, [EBP + 36]			; sum offset
+	XOR EAX, EAX
 
+	; Make calls to ReadVal equal to ARRAYSIZE
 _getNumberLoop:
 	PUSH [EBP + 28]				; Push validChar 
 	PUSH [EBP + 24]				; Push error message
@@ -155,20 +166,27 @@ _getNumberLoop:
 	PUSH EDI					; Push userArray Offset
 	CALL ReadVal
 
+	; add the converted number to EAX (will be added to sum offset later)
 	ADD EAX, [EDI]
 
+	; increment array destination in memory
 	ADD EDI, 4
 	LOOP _getNumberLoop
 	
+	; Move sum (EAX) to sum offset, stored in EBX
 	MOV [EBX], EAX
 	MOV EBX, [EBP + 40]			; average offset
 
+	; Divide sum (EAX) by ARRAYSIZE to get average
 	XOR EDX, EDX
+	MOV ECX, [EBP + 32]			; Move ARRAYSIZE (10) to ECX
 	DIV ECX
-	MOV [EBX], EAX
-
+	MOV [EBX], EAX				; Move average to average OFFSET
 
 	; return procedure
+	POP EDX
+	POP EBX 
+	POP EAX
 	POP ECX
 	POP EDI
 	POP EBP
@@ -179,15 +197,16 @@ getAllValues ENDP
 ;  Name: ReadVal
 ;	
 ;  Prompts user for an integer value, reads it as a string and converts to SDWORD, 
-;	and then stores this value in 
+;	and then stores this value in array destination.
 ;
-;  Receives: prompt_1, userString, userArray
+;  Receives:	validChar OFFSET, error_1 OFFSET, prompt_1 OFFSET, userString OFFSET,
+;				SIZEOF userString, userArray OFFSET
 ;
-;  Preconditions: randomArray must be a DWORD array
+;  Preconditions: userArray must be a DWORD array
 ;
-;  Postconditions: None
+;  Postconditions: validChar is changed
 ;
-;  Returns: userArray
+;  Returns: userArray, 
 ; ---------------------------------------------------------------------------------
 
 ReadVal PROC
@@ -198,10 +217,11 @@ ReadVal PROC
 	PUSH ECX
 	PUSH EBX
 	PUSH EAX
+	PUSH EDI 
 
-	MOV EDI, [EBP + 8]
+	MOV EDI, [EBP + 8]		; Array location (to store converted integer)
 	MOV EBX, [EBP + 28]		; validChar OFFSET 
-	XOR EAX, EAX
+	XOR EAX, EAX			
 	MOV [EBX], EAX			; Reset validChar to 0
 
 	;prompt user for input
@@ -227,10 +247,12 @@ _getString:
 	JMP _noError
 
 _errorInvalidNumber:
+	; If invalid number prompt for another number
 	mDisplayString [EBP + 24]
 	JMP _getString
 
 _noError:
+	POP EDI
 	POP EAX
 	POP EBX
 	POP ECX
@@ -244,23 +266,18 @@ ReadVal ENDP
 ;	
 ;  Converts a string value to integer using string primitives
 ;
-;  Receives: userString, userString Size, userArray
+;  Receives: userString, userString Size, userArray, validChar
 ;
 ;  Preconditions:  None
 ;
 ;  Postconditions: None
 ;
-;  Returns: userString
+;  Returns: userArray, validChar
 ; ---------------------------------------------------------------------------------
 convertString PROC
 	LOCAL numInt:SDWORD
 	LOCAL negVal:DWORD
-	PUSH EAX
-	PUSH EBX
-	PUSH ECX
-	PUSH EDX
-	PUSH EDI
-	PUSH ESI
+	PUSHAD
 
 	; Assign values from the stack 
 	XOR EAX, EAX
@@ -274,6 +291,10 @@ convertString PROC
 	
 	; Load first value
 	LODSB
+
+	; Check length
+	CMP ECX, 11
+	JG _invalid
 
 	; Check if value is + sign, else continue to loop 
 	CMP AL, 43
@@ -303,20 +324,32 @@ _negativeSign:
 	JMP _stringLoop
 
 _stringLoop:
+	; Load next string character
 	LODSB
 
 _checkString:
+	; Check that string is a valid digit
 	CMP AL, 48
 	JL _invalid
 	CMP AL, 57
 	JG _invalid
 
+	; zero extend value to 32-bits
 	MOVZX EBX, AL
+
+	; Convert from Ascii value to integer value
 	SUB EBX, 48
+
+	; multiply by base 10 after each pass to make room for new value
 	MOV EAX, 10
 	MUL numInt
 	ADD EAX, EBX
+
+	; Add most recent number to numInt
 	MOV numInt, EAX
+	JO _invalid
+
+	; End loop once ECX 0
 	DEC ECX
 	CMP ECX, 0
 	JE _storeString
@@ -329,35 +362,35 @@ _storeString:
 	JNE _positive
 	NEG EAX			; set value negative if negVal 1
 
-	; Store numeric value in user Array
 _positive:
+	CMP EAX, 0
+	JO _invalid
+
+	; Store numeric value in user Array
 	MOV [EDI], EAX
 	JMP _valid
 
 _invalid:
 	; If invalid update validChar to 1 (invalid status)
 	MOV EAX, 1
+	MOV EDX, [EBP + 20]		; reset EDX to validChar, could hold overflow
 	MOV [EDX], EAX
 	JMP _doneConverting
 
 _valid:
+	; If valid store 0 in valid char to alert ReadVal
 	XOR EAX, EAX
 	MOV [EBP + 20], EAX
 
 _doneConverting:
-	POP ESI
-	POP EDI
-	POP EDX
-	POP ECX
-	POP EBX
-	POP EAX
+	POPAD
 	RET 16
 convertString ENDP
 
 ; ---------------------------------------------------------------------------------
 ;  Name: writeAllValues
 ;	
-;  Displays the random array
+;  Displays values from the array, average, and sum via calls to WriteVal.
 ;
 ;  Receives: unsortedHeader, randomArray, ARRAYSIZE
 ;
@@ -390,30 +423,39 @@ _writeArrayValues:
 	MOV EAX, [ESI]
 	PUSH EAX
 	CALL WriteVal
+
+	; continue until ECX 0
 	DEC ECX
 	CMP ECX, 0
 	JE _finishWritingValues
+
+	; print comma if array still looping
 	mDisplayString [EBP + 20]
 	ADD ESI, 4
 	JMP _writeArrayValues
 
 _finishWritingValues:
-	PUSH [EBP + 24]
-	Call WriteVal
 	Call Crlf
+
+	; Display sum
+	mDisplayString [EBP + 36]
 	PUSH [EBP + 28]
 	Call WriteVal
 
-	; reset stack frame
+	; Display average
+	mDisplayString [EBP + 32]
+	PUSH [EBP + 24]
+	Call WriteVal
 	Call Crlf
 	Call Crlf
 
+	; reset stack frame
 	POP EAX
 	POP EDX
 	POP ESI
 	POP ECX
 	POP EBP
-	RET 24
+	RET 32
 writeAllValues ENDP
 
 ; ---------------------------------------------------------------------------------
@@ -434,41 +476,56 @@ WriteVal PROC
 	LOCAL reversedString[30]:BYTE
 	PUSHAD
 	
-	MOV EAX, [EBP + 8]
+	MOV EAX, [EBP + 8]		; SDWORD by value
 	XOR EDX, EDX
-	MOV EDI, EBP
-	SUB EDI, 60
+	MOV EDI, EBP			; Set EDI to local reversedString Array
+	SUB EDI, 60				
 	XOR ECX, ECX
 
 _checkNegativity:
+	; If value is negative, convert back to positive for printing purposes 
 	CMP EAX, 0
 	JG _intToStringLoop
 	NEG EAX
 
 _intToStringLoop:
+	; clear direction flag to increment
 	CLD
+
+	; ECX will serve as the count of strings
 	INC ECX
+
+	; Divide value by 10, remainder is last number of integer
 	XOR EDX, EDX
 	MOV EBX, 10
 	DIV EBX
+
+	; convert to ascii
 	ADD EDX, 48
 	MOV EBX, EAX
+
+	; Store remainder in AL and write to Array
 	MOV AL, DL 
 	STOSB
+
+	; If quotient is 0, the remainder was the only digit. Check for negativity
 	MOV EAX, EBX
 	CMP EBX, 0
 	JE _addNegativeSign
+
+	; Else check if quotient is less than 10. If less than 10, quotient is the final digit.
 	CMP EBX, 10
 	JL _convertFinalDigit
 	JMP _intToStringLoop 
 
 _convertFinalDigit:
+	; Increment digit counter
 	INC ECX
+
+	; Convert quotient to ascii and store in array
 	MOV AL, BL
 	ADD AL, 48
 	STOSB
-	;XOR AL, AL
-	;STOSB
 
 _addNegativeSign:
 	; If value 0 or positive continue to reverse string
@@ -482,24 +539,32 @@ _addNegativeSign:
 	STOSB
 
 _flipString:
+	; Set ESI equal to local "reversedString" array
 	MOV ESI, EBP 
 	SUB ESI, 60
+
+	; Add the string length to the address of ESI
 	ADD ESI, ECX	; ECX is string length
+
+	; Decrement by one to get start of reversed array
 	DEC ESI
+
+	; Set EDI equal to stringOutput LOCAL array
 	MOV EDI, EBP 
 	SUB EDI, 30
 
 _revLoop:
-    STD
-    LODSB
-    CLD
-    STOSB
+    STD			; decrement
+    LODSB		; load reversed string from esi (backwards string)
+    CLD			; increment 
+    STOSB		; store in edi (string in correct order)
 	LOOP   _revLoop
 
 	; Null terminate the string
 	mov byte ptr[edi],0 
 
 _displayString:
+	; print string value
 	MOV EAX, EBP
 	SUB EAX, 30
 	mDisplayString EAX
@@ -507,64 +572,6 @@ _displayString:
 	RET 4
 
 WriteVal ENDP
-
-; ---------------------------------------------------------------------------------
-;  Name: displayList
-;	
-;  Displays the random array
-;
-;  Receives: unsortedHeader, randomArray, ARRAYSIZE
-;
-;  Preconditions:  randomArray must be a DWORD array
-;
-;  Postconditions: EAX, EBX changed
-;
-;  Returns: randomArray
-; ---------------------------------------------------------------------------------
-displayList PROC
-	; save stack frame
-	PUSH EBP
-	MOV EBP, ESP
-	PUSH ECX
-	PUSH ESI
-	PUSH EDX
-
-
-	MOV ECX, [EBP + 12]
-	MOV ESI, [EBP + 8]
-	MOV EDX, [EBP + 16]
-	MOV EBX, 20
-
-	CALL WriteString 
-
-_printLoop:
-	; check if new line
-	MOV EAX, [EBP + 12]			; Move ARRAYSIZE into EAX
-	SUB EAX, ECX				; Subtract counter from ARRAYSIZE for total printed
-	XOR EDX, EDX
-	DIV EBX						; Divide by 20
-	CMP EDX, 0					; Print new line if divisible by 20
-	JNE _printCurrValue
-	Call Crlf
-
-_printCurrValue:
-	; Read value current value into EAX and print
-	MOV EAX, [ESI]
-	CALL WriteInt
-	MOV AL, ' '
-	CALL WriteChar
-	ADD ESI, 4
-	LOOP _printLoop
-
-	; reset stack frame
-	Call Crlf
-	Call Crlf
-	POP EDX
-	POP ESI
-	POP ECX
-	POP EBP
-	RET 8
-displayList ENDP
 
 ; ---------------------------------------------------------------------------------
 ;  Name: farewell
