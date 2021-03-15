@@ -39,10 +39,11 @@ ARRAYSIZE = 10
 						BYTE	"Please try again: ", 0
 	outro_1				BYTE	"Thanks for playing!", 0
 	prompt_1			BYTE	"Please enter an signed number: ", 0
-	userString			BYTE	33 DUP(0) 
+	prompt_2			BYTE	"You entered the following numbers:", 13, 10, 0
+	string_separator	BYTE	", ", 0
+	userString			BYTE	7 DUP(0) 
 	validChar			DWORD	?
 	userArray			SDWORD	10 DUP(?)
-	tempHeader			BYTE	"REMOVE ME: ", 13, 10, 0
 
 
 ; (insert variable definitions here)
@@ -54,18 +55,28 @@ main PROC
 	PUSH OFFSET intro_2
 	CALL introduction
 
+	PUSH ARRAYSIZE
 	PUSH OFFSET validChar
 	PUSH OFFSET error_1
 	PUSH OFFSET prompt_1
 	PUSH OFFSET userString
 	PUSH SIZEOF userString
 	PUSH OFFSET userArray
-	CALL ReadVal
+	CALL getAllValues
 
-	PUSH OFFSET tempHeader
+	;PUSH OFFSET prompt_2
+	;PUSH ARRAYSIZE
+	;PUSH OFFSET userArray
+	;CALL displayList
+
+	PUSH OFFSET string_separator
+	PUSH OFFSET prompt_2
 	PUSH ARRAYSIZE
 	PUSH OFFSET userArray
-	CALL displayList
+	CALL writeAllValues
+
+	;PUSH OFFSET userArray
+	;CALL WriteVal
 
 	; Goodbye
 	PUSH OFFSET outro_1
@@ -109,6 +120,48 @@ introduction PROC
 introduction ENDP
 
 ; ---------------------------------------------------------------------------------
+;  Name: getAllValues
+;	
+;  Gets 10 values from user
+;
+;  Receives: 
+;
+;  Preconditions:  None
+;
+;  Postconditions: Displays introductory messages, intro_2 OFFSET in EDX
+;
+;  Returns: None
+; ---------------------------------------------------------------------------------
+getAllValues PROC
+	; save stack frame
+	PUSH EBP
+	MOV EBP, ESP
+	PUSH EDI
+	PUSH ECX
+
+	MOV EDI, [EBP + 8]			; userArray Offset
+	MOV ECX, [EBP + 32]			; ArraySize
+
+_getNumberLoop:
+	PUSH [EBP + 28]				; Push validChar 
+	PUSH [EBP + 24]				; Push error message
+	PUSH [EBP + 20]				; Push prompt message
+	PUSH [EBP + 16]				; push userString
+	PUSH [EBP + 12]				; Push Max sizeOf user string	
+	PUSH EDI					; Push userArray Offset
+	CALL ReadVal
+
+	ADD EDI, 4
+	LOOP _getNumberLoop
+	
+	; return procedure
+	POP ECX
+	POP EDI
+	POP EBP
+	RET 28
+getAllValues ENDP
+
+; ---------------------------------------------------------------------------------
 ;  Name: ReadVal
 ;	
 ;  Prompts user for an integer value, reads it as a string and converts to SDWORD, 
@@ -131,9 +184,10 @@ ReadVal PROC
 	PUSH ECX
 	PUSH EBX
 
-	; Set loop counter (EBX because macro uses ECX.)
-	MOV EBX, 10
 	MOV EDI, [EBP + 8]
+	MOV EBX, [EBP + 28]		; validChar OFFSET 
+	XOR EAX, EAX
+	MOV [EBX], EAX			; Reset validChar to 0
 
 	;prompt user for input
 _promptUserNumber:
@@ -162,11 +216,6 @@ _errorInvalidNumber:
 	JMP _getString
 
 _noError:
-	ADD EDI, 4
-	DEC	EBX
-	CMP EBX, 0
-	JNE _promptUserNumber
-
 	POP EBX
 	POP ECX
 	POP EDX
@@ -290,6 +339,155 @@ _doneConverting:
 convertString ENDP
 
 ; ---------------------------------------------------------------------------------
+;  Name: writeAllValues
+;	
+;  Displays the random array
+;
+;  Receives: unsortedHeader, randomArray, ARRAYSIZE
+;
+;  Preconditions:  randomArray must be a DWORD array
+;
+;  Postconditions: EAX, EBX changed
+;
+;  Returns: randomArray
+; ---------------------------------------------------------------------------------
+writeAllValues PROC
+	; save stack frame
+	PUSH EBP
+	MOV EBP, ESP
+	PUSH ECX
+	PUSH ESI
+	PUSH EDX
+	PUSH EAX
+
+	MOV EBX, [EBP + 20]		; Array separator/commma string
+	MOV ECX, [EBP + 12]		; ArraySize
+	MOV ESI, [EBP + 8]		; Array OFFSET
+	MOV EDX, [EBP + 16]		; Header
+	
+
+	mDisplayString EDX
+
+
+_writeArrayValues:
+	; Read value current value into EAX and print
+	MOV EAX, [ESI]
+	PUSH EAX
+	CALL WriteVal
+	DEC ECX
+	CMP ECX, 0
+	JE _finishWritingValues
+	mDisplayString [EBP + 20]
+	ADD ESI, 4
+	JMP _writeArrayValues
+
+_finishWritingValues:
+
+	; reset stack frame
+	Call Crlf
+	Call Crlf
+
+	POP EAX
+	POP EDX
+	POP ESI
+	POP ECX
+	POP EBP
+	RET 16
+writeAllValues ENDP
+
+; ---------------------------------------------------------------------------------
+;  Name: WriteVal
+;	
+;  Sorts the array passed to the procedure
+;
+;  Receives: SDWORD input
+;
+;  Preconditions:  
+;
+;  Postconditions:   
+;
+;  Returns: displays SDWORD value to output
+; ---------------------------------------------------------------------------------
+WriteVal PROC
+	LOCAL stringOutput[30]:BYTE 
+	LOCAL reversedString[30]:BYTE
+	PUSHAD
+	
+	MOV EAX, [EBP + 8]
+	XOR EDX, EDX
+	MOV EDI, EBP
+	SUB EDI, 60
+	XOR ECX, ECX
+
+_checkNegativity:
+	CMP EAX, 0
+	JG _intToStringLoop
+	NEG EAX
+
+_intToStringLoop:
+	CLD
+	INC ECX
+	XOR EDX, EDX
+	MOV EBX, 10
+	DIV EBX
+	ADD EDX, 48
+	MOV EBX, EAX
+	MOV AL, DL 
+	STOSB
+	MOV EAX, EBX
+	CMP EBX, 0
+	JE _addNegativeSign
+	CMP EBX, 10
+	JL _convertFinalDigit
+	JMP _intToStringLoop 
+
+_convertFinalDigit:
+	INC ECX
+	MOV AL, BL
+	ADD AL, 48
+	STOSB
+	;XOR AL, AL
+	;STOSB
+
+_addNegativeSign:
+	; If value 0 or positive continue to reverse string
+	MOV EAX, [EBP + 8]
+	CMP EAX, 0
+	JGE _flipString
+
+	; Else add minus sign to string
+	INC ECX
+	MOV AL, '-'
+	STOSB
+
+_flipString:
+	MOV ESI, EBP 
+	SUB ESI, 60
+	ADD ESI, ECX	; ECX is string length
+	DEC ESI
+	MOV EDI, EBP 
+	SUB EDI, 30
+
+_revLoop:
+    STD
+    LODSB
+    CLD
+    STOSB
+	LOOP   _revLoop
+
+	; Null terminate the string
+	mov byte ptr[edi],0 
+
+_displayString:
+	MOV EAX, EBP
+	SUB EAX, 30
+	mDisplayString EAX
+	POPAD
+	RET 4
+
+WriteVal ENDP
+
+; ---------------------------------------------------------------------------------
 ;  Name: displayList
 ;	
 ;  Displays the random array
@@ -311,9 +509,9 @@ displayList PROC
 	PUSH EDX
 
 
-	MOV ECX, [EBP + 12]		; ArraySize
-	MOV ESI, [EBP + 8]		; Array OFFSET
-	MOV EDX, [EBP + 16]		; Header
+	MOV ECX, [EBP + 12]
+	MOV ESI, [EBP + 8]
+	MOV EDX, [EBP + 16]
 	MOV EBX, 20
 
 	CALL WriteString 
@@ -346,181 +544,6 @@ _printCurrValue:
 	POP EBP
 	RET 8
 displayList ENDP
-
-; ---------------------------------------------------------------------------------
-;  Name: WriteVal
-;	
-;  Sorts the array passed to the procedure
-;
-;  Receives: SDWORD input
-;
-;  Preconditions:  
-;
-;  Postconditions:   
-;
-;  Returns: displays SDWORD value to output
-; ---------------------------------------------------------------------------------
-WriteVal PROC
-	LOCAL stringOutput:BYTE 
-
-	MOV EAX, [EBP + 8] ; Numeric SDWORD
-	XOR EDX, EDX
-	MOV EDI, [EBP - 4]
-
-_intToStringLoop:
-	CLD
-	DIV 10
-	CMP EDX, 0 
-	JE 
-	MOV AL, DL
-	STOSB
-	JMP intToStringLoop 
-
-	RET 4
-WriteVal ENDP
-
-; ---------------------------------------------------------------------------------
-;  Name: exchangeElements
-;	
-;  exchanges two elements of an array
-;
-;  Receives: None
-;
-;  Preconditions: randomArray must be a DWORD array, value of current index in EAX, value of next index in EDX, address of current index in EDI
-;
-;  Postconditions: None
-;
-;  Returns: current and next index values are swapped 
-; ---------------------------------------------------------------------------------
-exchangeElements PROC
-	; save stack frame
-	PUSH EBP
-	MOV EBP, ESP
-
-	; swap the values
-	MOV [EDI], EDX
-	MOV [EDI + 4], EAX
-
-	POP EBP
-	RET
-exchangeElements ENDP
-
-; ---------------------------------------------------------------------------------
-;  Name: displayMedian
-;	
-;  Sorts the array passed to the procedure
-;
-;  Receives: randomArray, ARRAYSIZE
-;
-;  Preconditions:  randomArray must be DWORD array
-;
-;  Postconditions:   EAX, EBX, ECX, and EDX changed, median displayed
-;
-;  Returns: None
-; ---------------------------------------------------------------------------------
-displayMedian PROC
-	; save stack frame
-	PUSH EBP
-	MOV EBP, ESP
-
-	MOV EAX, [EBP + 12]			; ARRAYSIZE
-	MOV ESI, [EBP + 8]			; randomArray address
-
-	; Check if ARRAYSIZE is odd or even
-	XOR EDX, EDX
-	MOV ECX, 2
-	DIV ECX
-	CMP EDX, 0
-	JNE _oddNumberedArray
-
-	; If array is even, get addresses of the middle two numbers of the sorted array
-	MOV EBX, 4					; EAX is quotient of ARRAYSIZE DIV 2
-	MUL EBX						; MUL EBX gives address of middle index in EAX
-	MOV EDX, [ESI + EAX]		; Middle number 1
-	SUB EAX, EBX
-	MOV EBX, [ESI + EAX]		; Middle number 2
-	
-	; Find average of two middle numbers
-	ADD EBX, EDX
-	MOV EAX, EBX
-	MOV EBX, 2
-	XOR EDX, EDX
-	DIV EBX
-	
-	; If integer, print the result, else round up and print the result
-	CMP EDX, 0 
-	JE _printMedian
-	INC EAX
-	JMP _printMedian
-
-_oddNumberedArray:
-	; If odd numbered array, find the middle of array and print result
-	MOV EBX, 4					; EAX is quotient of ARRAYSIZE DIV 2
-	MUL EBX						; MUL EBX gives address of middle index in EAX
-	MOV EBX, [ESI+EAX]
-	MOV EAX, EBX
-	
-_printMedian:
-	MOV EDX, [EBP + 16]
-	CALL WriteString
-	CALL WriteDec
-	CALL Crlf
-	CALL Crlf
-
-	POP EBP
-	RET 8
-displayMedian ENDP
-
-; ---------------------------------------------------------------------------------
-;  Name: generateCounts
-;	
-;  populates the counts array with total amount of each random number
-;
-;  Preconditions: counts must be DWORD array
-;
-;  Postconditions: EAX, ECX, EDX changed, Goodbye message displayed
-;
-;  Receives: Arraysize, counts, HI, LO
-;
-;  Returns: None
-; ---------------------------------------------------------------------------------
-generateCounts PROC
-	; save stack frame
-	PUSH EBP
-	MOV EBP, ESP
-	PUSH ESI
-	PUSH EDI
-
-	MOV ECX, [EBP + 24]			; ARRAYSIZE
-	MOV EDI, [EBP + 20]			; counts
-	MOV ESI, [EBP + 8]			; randomArray                                                                                                                                                          ]
-	MOV EAX, [EBP + 12]			; LO
-	XOR EDX, EDX				; current count
-
-_startCount:
-	MOV EBX, [ESI]
-	CMP EAX, EBX
-	JNE _endCount
-	INC EDX
-	ADD ESI, 4
-	DEC ECX
-	JNZ _startCount
-
-_endCount:
-	MOV [EDI], EDX
-	ADD EDI, 4
-	XOR EDX, EDX
-	INC EAX
-	CMP ECX, 0
-	JE _doneCounting
-	JMP _startCount
-
-_doneCounting:
-	POP EDI
-	POP ESI
-	POP EBP
-	RET 20
-generateCounts ENDP
 
 ; ---------------------------------------------------------------------------------
 ;  Name: farewell
