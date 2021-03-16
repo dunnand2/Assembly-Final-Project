@@ -11,6 +11,8 @@ TITLE Project 6     (Proj6_dunnand.asm)
 ; back to strings using string primitives (including sum and average), and displays the values as strings.
 
 
+; **EC: This program numbers each line of user input and display a running subtotal of the user’s valid numbers, all using Writeval
+
 INCLUDE Irvine32.inc
 
 mGetString MACRO outputLocation, outputLocationSize
@@ -42,6 +44,8 @@ ARRAYSIZE = 10
 	prompt_2			BYTE	"You entered the following numbers:", 13, 10, 0
 	sum_prompt			BYTE	"The sum of these numbers is: ", 0
 	average_prompt		BYTE	"The rounded average is: ", 0
+	linePunctuation		BYTE	". ", 0
+	currentSum			BYTE	"Current Sum: ", 0
 	string_separator	BYTE	", ", 0
 	userString			BYTE	20 DUP(0) 
 	validChar			DWORD	?
@@ -60,6 +64,8 @@ main PROC
 	CALL introduction
 
 	; Receive all values, while calculating sum and average
+	PUSH OFFSET linePunctuation
+	PUSH OFFSET currentSum
 	PUSH OFFSET average
 	PUSH OFFSET sum
 	PUSH ARRAYSIZE
@@ -132,7 +138,8 @@ introduction ENDP
 ;				and stores in userArray. Calculates sum and average of converted integers. 
 ;
 ;  Receives:	average OFFSET, sum OFFSET, ARRAYSIZE, validChar OFFSET, SIZEOF userString 
-;				error_1 OFFSET, prompt_1 OFFSET, userString OFFSET, userArray OFFSET
+;				error_1 OFFSET, prompt_1 OFFSET, userString OFFSET, userArray OFFSET, linePunctuation OFFSET,
+;				currentSum OFFSET
 ;
 ;  Preconditions:  None
 ;
@@ -164,15 +171,29 @@ _getNumberLoop:
 	PUSH [EBP + 16]				; push userString
 	PUSH [EBP + 12]				; Push Max sizeOf user string	
 	PUSH EDI					; Push userArray Offset
+
+	MOV EDX, 11
+	SUB EDX, ECX
+	PUSH EDX
+	CALL WriteVal
+	mDisplayString [EBP + 48]
 	CALL ReadVal
 
 	; add the converted number to EAX (will be added to sum offset later)
+	mDisplayString [EBP + 44]
 	ADD EAX, [EDI]
+	PUSH EAX
+	CALL WriteVal
+	Call Crlf
+
 
 	; increment array destination in memory
 	ADD EDI, 4
 	LOOP _getNumberLoop
 	
+	; Add whitespace
+	CALL Crlf
+
 	; Move sum (EAX) to sum offset, stored in EBX
 	MOV [EBX], EAX
 	MOV EBX, [EBP + 40]			; average offset
@@ -190,7 +211,7 @@ _getNumberLoop:
 	POP ECX
 	POP EDI
 	POP EBP
-	RET 36
+	RET 44
 getAllValues ENDP
 
 ; ---------------------------------------------------------------------------------
@@ -347,15 +368,27 @@ _checkString:
 
 	; Add most recent number to numInt
 	MOV numInt, EAX
-	JO _invalid
+	JO _checkEdgeCase
 
 	; End loop once ECX 0
 	DEC ECX
 	CMP ECX, 0
-	JE _storeString
+	JE _checkNegative
 	JMP _stringLoop
 
+_checkEdgeCase:
+	; Check if value is -2147483648
+	CMP EAX, 2147483648
+	JNE _invalid
+	; If -2147483648, OK
+	CMP negVal, 1
+	JNE _invalid
+
 _storeString:
+	; Check if value overflows
+	MOV EAX, NumInt
+
+_checkNegative:
 	; Check if negVal was set to 1 (indicates a - sign was entered at start of string)
 	MOV EBX, negVal
 	CMP EBX, 1
@@ -363,9 +396,6 @@ _storeString:
 	NEG EAX			; set value negative if negVal 1
 
 _positive:
-	CMP EAX, 0
-	JO _invalid
-
 	; Store numeric value in user Array
 	MOV [EDI], EAX
 	JMP _valid
@@ -441,6 +471,7 @@ _finishWritingValues:
 	mDisplayString [EBP + 36]
 	PUSH [EBP + 28]
 	Call WriteVal
+	Call Crlf
 
 	; Display average
 	mDisplayString [EBP + 32]
