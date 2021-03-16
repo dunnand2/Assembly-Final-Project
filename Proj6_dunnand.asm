@@ -1,7 +1,7 @@
 TITLE Project 6     (Proj6_dunnand.asm)
 
 ; Author: Andrew Dunn
-; Last Modified: 3/15/2021
+; Last Modified: 3/16/2021
 ; OSU email address: dunnand@oregonstate.edu
 ; Course number/section:   CS271 Section 400
 ; Project Number: 6                Due Date: 3/16/2021 (two grace days)
@@ -15,14 +15,39 @@ TITLE Project 6     (Proj6_dunnand.asm)
 
 INCLUDE Irvine32.inc
 
-mGetString MACRO outputLocation, outputLocationSize
+; ---------------------------------------------------------------------------------
+; Name: mGetString
+;
+; Allows user to input string, storing string and string length in passed parameters
+;
+; Preconditions: None
+;
+; Receives:
+; outputLocation = array address
+; outputLocationSize = amount of memory allocated for string
+;
+; returns: outputLocation = user enter string stored at given address
+; ---------------------------------------------------------------------------------
+mGetString MACRO outputLocation:REQ, outputLocationSize:REQ
 	; get user input and allowable input size
 	MOV EDX, outputLocation
 	MOV ECX, outputLocationSize
 	CALL ReadString
 ENDM
 
-mDisplayString MACRO inputLocation
+; ---------------------------------------------------------------------------------
+; Name: mDisplayString
+;
+; Displays string passed to macro via an offset or address in memory
+;
+; Preconditions: None
+;
+; Receives:
+; inputLocation = array address
+;
+; returns: Displays string. Memory offset saved in EDX
+; ---------------------------------------------------------------------------------
+mDisplayString MACRO inputLocation:REQ
 	; Display input string
 	MOV EDX, inputLocation
 	CALL WriteString
@@ -116,13 +141,11 @@ introduction PROC
 	PUSH EDX
 
 	; print intro_1
-	MOV EDX, [EBP+12]
-	CALL WriteString
+	mDisplayString [EBP+12]
 	CALL Crlf
 
 	; print intro_2
-	MOV EDX, [EBP+8]
-	CALL WriteString
+	mDisplayString [EBP+8]
 	CALL Crlf
 	
 	; return procedure
@@ -172,11 +195,13 @@ _getNumberLoop:
 	PUSH [EBP + 12]				; Push Max sizeOf user string	
 	PUSH EDI					; Push userArray Offset
 
+	; print current line number
 	MOV EDX, 11
 	SUB EDX, ECX
 	PUSH EDX
 	CALL WriteVal
 	mDisplayString [EBP + 48]
+
 	CALL ReadVal
 
 	; add the converted number to EAX (will be added to sum offset later)
@@ -601,7 +626,6 @@ _displayString:
 	mDisplayString EAX
 	POPAD
 	RET 4
-
 WriteVal ENDP
 
 ; ---------------------------------------------------------------------------------
@@ -623,8 +647,7 @@ farewell PROC
 	MOV EBP, ESP
 
 	; print greeting_1
-	MOV EDX, [EBP+8]
-	CALL WriteString
+	mDisplayString [EBP+8]
 	CALL Crlf
 	
 	; return procedure
